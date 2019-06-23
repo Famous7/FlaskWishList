@@ -152,14 +152,12 @@ def add_wish():
             _user = session.get('user')
 
             with conn.cursor() as cursor:
-                cursor.callproc('sp_addWish', (_title, _description, _user))
-                data = cursor.fetchall()
+                sql = 'insert into tbl_wish(wish_title, wish_description, wish_user_id) values(%s, %s, %s)'
+                cursor.execute(sql, (_title, _description, _user))
+                cursor.fetchone()
+                conn.commit()
 
-                if len(data) == 0:
-                    conn.commit()
-                    return redirect('/userHome')
-                else:
-                    return render_template('error.html', error='An error occurred!')
+                return redirect('/userHome')
         else:
             return render_template('error.html', error='Unauthorized Access')
 
@@ -219,28 +217,30 @@ def sign_up():
     _password = request.form['inputPassword']
 
     if _name and _email and _password:
-        try:
-            conn = mysql.connect()
-        except Exception as e:
-            return render_template('error.html', error=str(e))
-
+        conn = mysql.connect()
         try:
             with conn.cursor() as cursor:
                 _hash_password = generate_password_hash(_password)
-                cursor.callproc('sp_createUser', (_name, _email, _hash_password))
+                sql = 'select * from tbl_user where user_username = %s'
+                cursor.execute(sql, (_email,))
                 data = cursor.fetchall()
 
-                if len(data) is 0:
-                    conn.commit()
-                    return redirect('/userHome.html')
-                else:
-                    return json.dumps({'error': str(data[0])})
+                if len(data) != 0:
+                    resp = jsonify('{0} is already exist!!'.format(_email))
+                    resp.status_code = 400
+                    return resp
+
+                sql = 'insert into tbl_user(user_name, user_username, user_password) values(%s, %s, %s)'
+                cursor.execute(sql, (_name, _email, _hash_password))
+                conn.commit()
+                return redirect('/userHome.html')
+
         except Exception as e:
             return render_template('error.html', error=str(e))
         finally:
             conn.close()
     else:
-        resp = jsonify('field error')
+        resp = jsonify('Enter the required field!!')
         resp.status_code = 400
         return resp
 

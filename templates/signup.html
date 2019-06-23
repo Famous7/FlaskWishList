@@ -28,10 +28,10 @@
                     data: $('form').serialize(),
                     type: 'POST',
                     success: function (response) {
-                        console.log(response);
+                        window.location.href = '/userHome'
                     },
                     error: function (error) {
-                        alert('Enter the required field!!!')
+                        alert(error.responseText)
                     }
                 });
             });
