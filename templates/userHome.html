@@ -48,11 +48,8 @@
         function Edit(elm) {
             localStorage.setItem('editId', $(elm).attr('data-id'));
             $.ajax({
-                url: '/getWishById',
-                data: {
-                    id: $(elm).attr('data-id')
-                },
-                type: 'POST',
+                url: '/getWishById/' + $(elm).attr('data-id'),
+                type: 'GET',
                 success: function (res) {
                     // Parse the received JSON string
                     var data = JSON.parse(res);
@@ -75,13 +72,12 @@
             GetWishes();
             $('#btnUpdate').click(function () {
                 $.ajax({
-                    url: '/updateWish',
+                    url: '/updateWish/' + localStorage.getItem('editId'),
                     data: {
                         title: $('#editTitle').val(),
                         description: $('#editDescription').val(),
-                        id: localStorage.getItem('editId')
                     },
-                    type: 'POST',
+                    type: 'PUT',
                     success: function (res) {
                         $('#editModal').modal('hide');
                         GetWishes();
@@ -110,11 +106,8 @@
 
         function Delete() {
             $.ajax({
-                url: '/deleteWish',
-                data: {
-                    id: localStorage.getItem('deleteId')
-                },
-                type: 'POST',
+                url: '/deleteWish/' + localStorage.getItem('deleteId'),
+                type: 'DELETE',
                 success: function (res) {
                     var result = JSON.parse(res);
                     if (result.status === 'OK') {

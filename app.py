@@ -33,18 +33,19 @@ def user_home():
         return render_template('error.html', error='Unauthorized Access')
 
 
-@app.route('/updateWish', methods=['POST'])
-def update_wish():
+@app.route('/updateWish/<int:wish_id>', methods=['PUT'])
+def update_wish(wish_id):
+    conn = mysql.connect()
     try:
         if session.get('user'):
             _user = session.get('user')
             _title = request.form['title']
             _description = request.form['description']
-            _wish_id = request.form['id']
+            _wish_id = wish_id
 
-            conn = mysql.connect()
             with conn.cursor() as cursor:
-                cursor.callproc('sp_updateWish', (_title, _description, _wish_id, _user))
+                sql = 'update tbl_wish set wish_title = %s, wish_description = %s where wish_id = %s and wish_user_id = %s'
+                cursor.execute(sql, (_title, _description, _wish_id, _user))
                 data = cursor.fetchall()
 
                 if len(data) == 0:
@@ -61,16 +62,17 @@ def update_wish():
         conn.close()
 
 
-@app.route('/deleteWish', methods=['POST'])
-def delete_wish():
+@app.route('/deleteWish/<int:wish_id>', methods=['DELETE'])
+def delete_wish(wish_id):
+    conn = mysql.connect()
     try:
         if session.get('user'):
-            _id = request.form['id']
+            _id = wish_id
             _user = session.get('user')
 
-            conn = mysql.connect()
             with conn.cursor() as cursor:
-                cursor.callproc('sp_deleteWish', (_id, _user))
+                sql = 'delete from tbl_wish where wish_id = %s and wish_user_id = %s'
+                cursor.execute(sql, (_id, _user))
                 result = cursor.fetchall()
 
                 if len(result) is 0:
@@ -83,24 +85,23 @@ def delete_wish():
 
     except Exception as e:
         return render_template('error.html', error=str(e))
-
     finally:
         conn.close()
 
 
-@app.route('/getWishById', methods=['POST'])
-def get_wish_by_id():
+@app.route('/getWishById/<int:wish_id>')
+def get_wish_by_id(wish_id):
     try:
         if session.get('user'):
-            _id = request.form['id']
+            _id = wish_id
             _user = session.get('user')
 
             with mysql.connect().cursor() as cursor:
-                cursor.callproc('sp_getWishById', (_id, _user))
+                sql = 'select * from tbl_wish where wish_id = %s and wish_user_id = %s'
+                cursor.execute(sql, (_id, _user))
                 result = cursor.fetchall()
 
                 wish = [{'Id': result[0][0], 'Title': result[0][1], 'Description': result[0][2]}]
-
                 return json.dumps(wish)
         else:
             return render_template('error.html', error='Unauthorized Access')
@@ -116,7 +117,8 @@ def get_wish():
             _user = session.get('user')
 
             with mysql.connect().cursor() as cursor:
-                cursor.callproc('sp_GetWishByUser', (_user,))
+                sql = 'select * from tbl_wish where wish_user_id = %s'
+                cursor.execute(sql, (_user,))
                 wishes = cursor.fetchall()
 
                 wishes_dict = []
@@ -142,30 +144,28 @@ def show_add_wish():
 
 @app.route('/addWish', methods=['POST'])
 def add_wish():
+    conn = mysql.connect()
     try:
         if session.get('user'):
             _title = request.form['inputTitle']
             _description = request.form['inputDescription']
             _user = session.get('user')
 
-            conn = mysql.connect()
-            cursor = conn.cursor()
-            cursor.callproc('sp_addWish', (_title, _description, _user))
-            data = cursor.fetchall()
+            with conn.cursor() as cursor:
+                cursor.callproc('sp_addWish', (_title, _description, _user))
+                data = cursor.fetchall()
 
-            if len(data) == 0:
-                conn.commit()
-                return redirect('/userHome')
-            else:
-                return render_template('error.html', error='An error occurred!')
-
+                if len(data) == 0:
+                    conn.commit()
+                    return redirect('/userHome')
+                else:
+                    return render_template('error.html', error='An error occurred!')
         else:
             return render_template('error.html', error='Unauthorized Access')
 
     except Exception as e:
         return render_template('error.html', error=str(e))
     finally:
-        cursor.close()
         conn.close()
 
 
@@ -187,32 +187,29 @@ def show_sign_in():
 
 @app.route('/validateLogin', methods=['POST'])
 def validate_login():
+    conn = mysql.connect()
     try:
-        _username = request.form['inputEmail']
-        _password = request.form['inputPassword']
+        with conn.cursor() as cursor:
+            _username = request.form['inputEmail']
+            _password = request.form['inputPassword']
+            cursor.callproc('sp_validateLogin', (_username,))
 
-        con = mysql.connect()
-        cursor = con.cursor()
+            data = cursor.fetchall()
 
-        cursor.callproc('sp_validateLogin', (_username,))
-
-        data = cursor.fetchall()
-
-        if len(data) > 0:
-            if check_password_hash(str(data[0][3]), _password):
-                session['user'] = data[0][0]
-                return redirect('/userHome')
+            if len(data) > 0:
+                if check_password_hash(str(data[0][3]), _password):
+                    session['user'] = data[0][0]
+                    return redirect('/userHome')
+                else:
+                    return render_template('error.html', error='Wrong Email address or Password.')
             else:
-                return render_template('error.html', error='Wrong Email address or Password.')
-        else:
-            render_template('error.html', error='Wrong Email address or Password.')
+                render_template('error.html', error='Wrong Email address or Password.')
 
     except Exception as e:
         return render_template('error.html', error=str(e))
 
     finally:
-        cursor.close()
-        con.close()
+        conn.close()
 
 
 @app.route('/signUp', methods=['POST'])
