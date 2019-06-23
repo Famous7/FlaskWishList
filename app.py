@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, json, redirect, session
+from flask import Flask, render_template, request, json, redirect, session, jsonify
 from flaskext.mysql import MySQL
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -13,6 +13,11 @@ app.config['MYSQL_DATABASE_PASSWORD'] = 'vnfdjqhk66'
 app.config['MYSQL_DATABASE_DB'] = 'BucketList'
 app.config['MYSQL_DATABASE_HOST'] = 'localhost'
 mysql.init_app(app)
+
+
+@app.errorhandler(404)
+def not_found(error=None):
+    return render_template('error.html', error='Not Found(404) {0}'.format(request.url))
 
 
 @app.route('/')
@@ -47,9 +52,11 @@ def update_wish():
                     return json.dumps({'status': 'OK'})
                 else:
                     return json.dumps({'status': 'ERROR'})
+        else:
+            return render_template('error.html', error='Unauthorized Access')
 
     except Exception as e:
-        return json.dumps({'status': 'Unauthorized access'})
+        return render_template('error.html', error=str(e))
     finally:
         conn.close()
 
@@ -70,12 +77,12 @@ def delete_wish():
                     conn.commit()
                     return json.dumps({'status': 'OK'})
                 else:
-                    return json.dumps({'status': 'An Error occured'})
+                    return json.dumps({'status': 'Error'})
         else:
             return render_template('error.html', error='Unauthorized Access')
 
     except Exception as e:
-        return json.dumps({'status': str(e)})
+        return render_template('error.html', error=str(e))
 
     finally:
         conn.close()
@@ -210,13 +217,17 @@ def validate_login():
 
 @app.route('/signUp', methods=['POST'])
 def sign_up():
-    try:
-        _name = request.form['inputName']
-        _email = request.form['inputEmail']
-        _password = request.form['inputPassword']
+    _name = request.form['inputName']
+    _email = request.form['inputEmail']
+    _password = request.form['inputPassword']
 
-        if _name and _email and _password:
+    if _name and _email and _password:
+        try:
             conn = mysql.connect()
+        except Exception as e:
+            return render_template('error.html', error=str(e))
+
+        try:
             with conn.cursor() as cursor:
                 _hash_password = generate_password_hash(_password)
                 cursor.callproc('sp_createUser', (_name, _email, _hash_password))
@@ -227,13 +238,14 @@ def sign_up():
                     return redirect('/userHome.html')
                 else:
                     return json.dumps({'error': str(data[0])})
-        else:
-            return json.dumps({'html': '<span>Enter the required fields</span>'})
-
-    except Exception as e:
-        return json.dumps({'error': str(e)})
-    finally:
-        conn.close()
+        except Exception as e:
+            return render_template('error.html', error=str(e))
+        finally:
+            conn.close()
+    else:
+        resp = jsonify('field error')
+        resp.status_code = 400
+        return resp
 
 
 if __name__ == '__main__':
