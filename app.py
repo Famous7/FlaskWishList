@@ -28,6 +28,80 @@ def user_home():
         return render_template('error.html', error='Unauthorized Access')
 
 
+@app.route('/updateWish', methods=['POST'])
+def update_wish():
+    try:
+        if session.get('user'):
+            _user = session.get('user')
+            _title = request.form['title']
+            _description = request.form['description']
+            _wish_id = request.form['id']
+
+            conn = mysql.connect()
+            with conn.cursor() as cursor:
+                cursor.callproc('sp_updateWish', (_title, _description, _wish_id, _user))
+                data = cursor.fetchall()
+
+                if len(data) == 0:
+                    conn.commit()
+                    return json.dumps({'status': 'OK'})
+                else:
+                    return json.dumps({'status': 'ERROR'})
+
+    except Exception as e:
+        return json.dumps({'status': 'Unauthorized access'})
+    finally:
+        conn.close()
+
+
+@app.route('/deleteWish', methods=['POST'])
+def delete_wish():
+    try:
+        if session.get('user'):
+            _id = request.form['id']
+            _user = session.get('user')
+
+            conn = mysql.connect()
+            with conn.cursor() as cursor:
+                cursor.callproc('sp_deleteWish', (_id, _user))
+                result = cursor.fetchall()
+
+                if len(result) is 0:
+                    conn.commit()
+                    return json.dumps({'status': 'OK'})
+                else:
+                    return json.dumps({'status': 'An Error occured'})
+        else:
+            return render_template('error.html', error='Unauthorized Access')
+
+    except Exception as e:
+        return json.dumps({'status': str(e)})
+
+    finally:
+        conn.close()
+
+
+@app.route('/getWishById', methods=['POST'])
+def get_wish_by_id():
+    try:
+        if session.get('user'):
+            _id = request.form['id']
+            _user = session.get('user')
+
+            with mysql.connect().cursor() as cursor:
+                cursor.callproc('sp_getWishById', (_id, _user))
+                result = cursor.fetchall()
+
+                wish = [{'Id': result[0][0], 'Title': result[0][1], 'Description': result[0][2]}]
+
+                return json.dumps(wish)
+        else:
+            return render_template('error.html', error='Unauthorized Access')
+
+    except Exception as e:
+        return render_template('error.html', error=str(e))
+
+
 @app.route('/getWish')
 def get_wish():
     try:
@@ -41,7 +115,7 @@ def get_wish():
                 wishes_dict = []
                 for wish in wishes:
                     wishes_dict.append({
-                        'id': wish[0],
+                        'Id': wish[0],
                         'Title': wish[1],
                         'Description': wish[2],
                         'Date': wish[4]
@@ -142,27 +216,23 @@ def sign_up():
         _password = request.form['inputPassword']
 
         if _name and _email and _password:
-
             conn = mysql.connect()
-            cursor = conn.cursor()
+            with conn.cursor() as cursor:
+                _hash_password = generate_password_hash(_password)
+                cursor.callproc('sp_createUser', (_name, _email, _hash_password))
+                data = cursor.fetchall()
 
-            _hash_password = generate_password_hash(_password)
-            print(len(_hash_password))
-            cursor.callproc('sp_createUser', (_name, _email, _hash_password))
-            data = cursor.fetchall()
-
-            if len(data) is 0:
-                conn.commit()
-                return json.dumps({'message': 'User created successfully !'})
-            else:
-                return json.dumps({'error': str(data[0])})
+                if len(data) is 0:
+                    conn.commit()
+                    return redirect('/userHome.html')
+                else:
+                    return json.dumps({'error': str(data[0])})
         else:
             return json.dumps({'html': '<span>Enter the required fields</span>'})
 
     except Exception as e:
         return json.dumps({'error': str(e)})
     finally:
-        cursor.close()
         conn.close()
 
 
