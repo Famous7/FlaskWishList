@@ -110,16 +110,24 @@ def get_wish_by_id(wish_id):
         return render_template('error.html', error=str(e))
 
 
-@app.route('/getWish')
-def get_wish():
+@app.route('/getWish/<int:offset>')
+def get_wish(offset):
     try:
         if session.get('user'):
             _user = session.get('user')
+            _limit = int(request.args['itemPerPage'])
+            _offset = offset
 
             with mysql.connect().cursor() as cursor:
-                sql = 'select * from tbl_wish where wish_user_id = %s'
-                cursor.execute(sql, (_user,))
+                number_sql = '(select count(*), 1, 2, 3, 4 from tbl_wish where wish_user_id = %s)'
+                data_sql = '(select * from tbl_wish where wish_user_id = %s order by wish_date desc limit %s offset %s)'
+                sql = ' union '.join([number_sql, data_sql])
+
+                cursor.execute(sql, (_user, _user, _limit, _offset))
                 wishes = cursor.fetchall()
+
+                response = [{'total': wishes[0][0]}]
+                wishes = wishes[1:]
 
                 wishes_dict = []
                 for wish in wishes:
@@ -129,7 +137,9 @@ def get_wish():
                         'Description': wish[2],
                         'Date': wish[4]
                     })
-                return json.dumps(wishes_dict)
+
+                response.append(wishes_dict)
+                return json.dumps(response)
         else:
             return render_template('error.html', error='Unauthorized Access')
 
@@ -190,7 +200,8 @@ def validate_login():
         with conn.cursor() as cursor:
             _username = request.form['inputEmail']
             _password = request.form['inputPassword']
-            cursor.callproc('sp_validateLogin', (_username,))
+            sql = 'select * from tbl_user where user_username = %s'
+            cursor.execute(sql, (_username,))
 
             data = cursor.fetchall()
 

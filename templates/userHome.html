@@ -39,7 +39,6 @@
     </style>
 
     <script>
-
         function ConfirmDelete(elem) {
             localStorage.setItem('deleteId', $(elem).attr('data-id'));
             $('#deleteModal').modal();
@@ -69,7 +68,7 @@
         }
 
         $(function () {
-            GetWishes();
+            GetWishes(1);
             $('#btnUpdate').click(function () {
                 $.ajax({
                     url: '/updateWish/' + localStorage.getItem('editId'),
@@ -89,14 +88,85 @@
             });
         });
 
-        function GetWishes() {
+        function GetWishes(_page) {
+            $('#hdnCurrent').val(_page);
+            var itemsPerPage = 5;
+            var _offset = (_page - 1) * itemsPerPage;
+
             $.ajax({
-                url: '/getWish',
+                url: '/getWish/' + _offset + '?itemPerPage=' + itemsPerPage,
                 type: 'GET',
                 success: function (res) {
+
                     var wishObj = JSON.parse(res);
+
                     $('#ulist').empty();
-                    $('#listTemplate').tmpl(wishObj).appendTo('#ulist');
+                    $('#listTemplate').tmpl(wishObj[1]).appendTo('#ulist');
+
+                    var total = wishObj[0]['total'];
+                    var pageCount = total / itemsPerPage;
+                    var pageRem = total % itemsPerPage;
+                    if (pageRem !== 0) {
+                        pageCount = Math.floor(pageCount) + 1;
+                    }
+
+                    $('.pagination').empty();
+
+                    var pageStart = $('#hdnStart').val();
+                    var pageEnd = $('#hdnEnd').val();
+
+                    if (pageStart > 5) {
+                        var aPrev = $('<a/>').attr({
+                            'href': '#'
+                        }, {
+                            'aria-label': 'Previous'
+                        }).append($('<span/>').attr('aria-hidden', 'true').html('&laquo;'));
+
+                        $(aPrev).click(function () {
+                            $('#hdnStart').val(Number(pageStart) - 5);
+                            $('#hdnEnd').val(Number(pageStart) - 5 + 4);
+                            GetWishes(Number(pageStart) - 5);
+                        });
+
+                        var prevLink = $('<li/>').append(aPrev);
+                        $('.pagination').append(prevLink);
+                    }
+
+                    for (var i = Number(pageStart); i <= Number(pageEnd); i++) {
+                        if (i > pageCount) {
+                            break;
+                        }
+
+                        var aPage = $('<a/>').attr('href', '#').text(i);
+
+                        $(aPage).click(function (i) {
+                            return function () {
+                                GetWishes(i);
+                            }
+                        }(i));
+                        var page = $('<li/>').append(aPage);
+
+                        if ((_page) === i) {
+                            $(page).attr('class', 'active');
+                        }
+
+                        $('.pagination').append(page);
+                    }
+
+                    if ((Number(pageStart) + 5) <= pageCount) {
+                        var nextLink = $('<li/>').append($('<a/>').attr({
+                            'href': '#'
+                        }, {
+                            'aria-label': 'Next'
+                        }).append(
+                            $('<span/>').attr('aria-hidden', 'true').html('&raquo;').click(function () {
+                                $('#hdnStart').val(Number(pageStart) + 5);
+                                $('#hdnEnd').val(Number(pageStart) + 5 + 4);
+                                GetWishes(Number(pageStart) + 5);
+                            })
+                        ));
+                        $('.pagination').append(nextLink);
+                    }
                 },
                 error: function (error) {
                     console.log(error);
@@ -112,7 +182,7 @@
                     var result = JSON.parse(res);
                     if (result.status === 'OK') {
                         $('#deleteModal').modal('hide');
-                        GetWishes();
+                        GetWishes($('#hdnCurrent').val());
                     } else {
                         alert(result.status);
                     }
@@ -147,7 +217,7 @@
     <script id="listTemplate" type="text/x-jQuery-tmpl">
     <li class="list-group-item">
         <div class="checkbox">
-            <label>
+            <label onclick="Edit(this)" data-id=${Id}>
                 ${Title}
             </label>
         </div>
@@ -156,21 +226,26 @@
             <a data-id=${Id} onclick="ConfirmDelete(this)" ><span class="glyphicon glyphicon-trash"></span></a>
         </div>
     </li>
-
-
-
     </script>
 
     <div class="row">
         <div class="col-md-12">
             <div class="panel-body">
                 <ul id="ulist" class="list-group">
-
-
                 </ul>
+
+                <nav>
+                    <ul class="pagination">
+
+                    </ul>
+                </nav>
             </div>
         </div>
     </div>
+
+    <input type="hidden" id="hdnStart" value="1"/>
+    <input type="hidden" id="hdnCurrent" value="1"/>
+    <input type="hidden" id="hdnEnd" value="5"/>
 
 
     <div class="modal fade" id="editModal" tabindex="-1" role="dialog" aria-labelledby="editModalLabel"
