@@ -1,6 +1,8 @@
 from flask import Flask, render_template, request, json, redirect, session, jsonify
 from flaskext.mysql import MySQL
 from werkzeug.security import generate_password_hash, check_password_hash
+import os, uuid
+
 
 app = Flask(__name__)
 app.secret_key = 'Famous'
@@ -12,6 +14,8 @@ app.config['MYSQL_DATABASE_USER'] = 'root'
 app.config['MYSQL_DATABASE_PASSWORD'] = 'vnfdjqhk66'
 app.config['MYSQL_DATABASE_DB'] = 'BucketList'
 app.config['MYSQL_DATABASE_HOST'] = 'localhost'
+app.config['UPLOAD_FOLDER'] = 'static/Uploads'
+
 mysql.init_app(app)
 
 
@@ -42,10 +46,13 @@ def update_wish(wish_id):
             _title = request.form['title']
             _description = request.form['description']
             _wish_id = wish_id
+            _file_path = request.form['filePath']
+            _is_private = request.form['isPrivate']
+            _is_done = request.form['isDone']
 
             with conn.cursor() as cursor:
-                sql = 'update tbl_wish set wish_title = %s, wish_description = %s where wish_id = %s and wish_user_id = %s'
-                cursor.execute(sql, (_title, _description, _wish_id, _user))
+                sql = 'update tbl_wish set wish_title = %s, wish_description = %s, wish_file_path = %s, wish_private = %s, wish_accomplished = %s where wish_id = %s and wish_user_id = %s'
+                cursor.execute(sql, (_title, _description, _file_path, _is_private, _is_done, _wish_id, _user))
                 data = cursor.fetchall()
 
                 if len(data) == 0:
@@ -101,7 +108,9 @@ def get_wish_by_id(wish_id):
                 cursor.execute(sql, (_id, _user))
                 result = cursor.fetchall()
 
-                wish = [{'Id': result[0][0], 'Title': result[0][1], 'Description': result[0][2]}]
+                wish = [{'Id': result[0][0], 'Title': result[0][1], 'Description': result[0][2],
+                         'FilePath': result[0][5], 'Done': result[0][6], 'Private': result[0][7]}]
+
                 return json.dumps(wish)
         else:
             return render_template('error.html', error='Unauthorized Access')
@@ -119,7 +128,7 @@ def get_wish(offset):
             _offset = offset
 
             with mysql.connect().cursor() as cursor:
-                number_sql = '(select count(*), 1, 2, 3, 4 from tbl_wish where wish_user_id = %s)'
+                number_sql = '(select count(*), 1, 2, 3, 4, 5, 6, 7 from tbl_wish where wish_user_id = %s)'
                 data_sql = '(select * from tbl_wish where wish_user_id = %s order by wish_date desc limit %s offset %s)'
                 sql = ' union '.join([number_sql, data_sql])
 
@@ -160,10 +169,14 @@ def add_wish():
             _title = request.form['inputTitle']
             _description = request.form['inputDescription']
             _user = session.get('user')
+            _file_path = '' if request.form.get('filePath') is None \
+                else request.form.get('filePath')
+            _done = 0 if request.form.get('done') is None else 1
+            _private = 0 if request.form.get('private') is None else 1
 
             with conn.cursor() as cursor:
-                sql = 'insert into tbl_wish(wish_title, wish_description, wish_user_id) values(%s, %s, %s)'
-                cursor.execute(sql, (_title, _description, _user))
+                sql = 'insert into tbl_wish(wish_title, wish_description, wish_user_id, wish_file_path, wish_accomplished, wish_private) values(%s, %s, %s, %s, %s, %s)'
+                cursor.execute(sql, (_title, _description, _user, _file_path, _done, _private))
                 cursor.fetchone()
                 conn.commit()
 
@@ -252,8 +265,19 @@ def sign_up():
             conn.close()
     else:
         resp = jsonify('Enter the required field!!')
-        resp.status_code = 400
+        resp.status_code = 40
         return resp
+
+
+@app.route('/upload', methods=['GET', 'POST'])
+def upload():
+    if request.method == 'POST':
+        file = request.files['file']
+        extension = os.path.splitext(file.filename)[1]
+        f_name = str(uuid.uuid4()) + extension
+
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], f_name))
+        return json.dumps({'filename':f_name})
 
 
 if __name__ == '__main__':
