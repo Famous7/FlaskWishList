@@ -3,7 +3,6 @@ from flaskext.mysql import MySQL
 from werkzeug.security import generate_password_hash, check_password_hash
 import os, uuid
 
-
 app = Flask(__name__)
 app.secret_key = 'Famous'
 
@@ -277,7 +276,95 @@ def upload():
         f_name = str(uuid.uuid4()) + extension
 
         file.save(os.path.join(app.config['UPLOAD_FOLDER'], f_name))
-        return json.dumps({'filename':f_name})
+        return json.dumps({'filename': f_name})
+
+
+@app.route('/showDashboard')
+def show_dashboard():
+    return render_template('dashboard.html')
+
+
+@app.route('/getAllWishes')
+def get_all_wishes():
+    conn = mysql.connect()
+    try:
+        if not session.get('user'):
+            return render_template('error.html', error='Unauthorized Access')
+
+        with conn.cursor() as cursor:
+            sql = 'select wish_id as id, wish_title, wish_description, wish_file_path, ' \
+                  '(select sum(wish_like) from tbl_likes where wish_id=id), ' \
+                  '(select exists (select 1 from tbl_likes where wish_id=id and user_id=%s)) from tbl_wish where wish_private = 0;'
+
+            cursor.execute(sql, (session.get('user'),))
+            result = cursor.fetchall()
+
+            wishes_dict = []
+            for wish in result:
+                wishes_dict.append({
+                    'Id': wish[0],
+                    'Title': wish[1],
+                    'Description': wish[2],
+                    'FilePath': wish[3],
+                    'Like': 0 if not wish[4] else int(wish[4]),
+                    'HasLiked': wish[5]
+                })
+
+            return json.dumps(wishes_dict)
+
+    except Exception as e:
+        return render_template('error.html', error=str(e))
+    finally:
+        conn.close()
+
+
+@app.route('/addUpdateLike', methods=['POST'])
+def add_update_like():
+    conn = mysql.connect()
+    try:
+        if not session.get('user'):
+            return render_template('error.html', error='Unauthorized Access')
+
+        _wish_id = request.form['wish']
+        _user = session.get('user')
+        has_liked = False
+
+        with conn.cursor() as cursor:
+            sql = 'select like_id, user_id, wish_like from tbl_likes where wish_id=%s'
+            cursor.execute(sql, (_wish_id,))
+            data = cursor.fetchall()
+
+            like_id = None
+            total = len(data)
+
+            for row in data:
+                if row[1] == _user:
+                    has_liked = True
+                    like_id = row[0]
+                    break
+
+            if not has_liked:
+                sql = 'insert into tbl_likes(wish_like, wish_id, user_id) values(1, %s, %s)'
+                cursor.execute(sql, (_wish_id, _user))
+                total += 1
+                has_liked = True
+            else:
+                sql = 'delete from tbl_likes where like_id=%s'
+                cursor.execute(sql, (like_id,))
+                total -= 1
+                has_liked = False
+
+            cursor.fetchone()
+            conn.commit()
+
+            return json.dumps({'status': 'OK',
+                               'total': total,
+                               'likeStatus': has_liked})
+
+    except Exception as e:
+        return render_template('error.html', error=str(e))
+    finally:
+        conn.close()
 
 
 if __name__ == '__main__':

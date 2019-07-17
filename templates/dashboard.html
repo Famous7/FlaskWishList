@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>Python Flask Bucket List App</title>
+
+    <script src="../static/js/jQuery.js"></script>
+
+    <!-- Bootstrap -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="//netdna.bootstrapcdn.com/font-awesome/3.2.1/css/font-awesome.min.css">
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/js/bootstrap.min.js"></script>
+
+    <!-- Page Level Script -->
+    <script>
+        $(document).on('click', '[id^=btn_]', function () {
+            var wishId = $(this).attr('id').split('_')[1];
+            $.ajax({
+                url: '/addUpdateLike',
+                method: 'POST',
+                data: {
+                    wish: wishId
+                },
+                success: function (response) {
+                    var result = JSON.parse(response);
+                    console.log(result)
+                    if (result.likeStatus) {
+                        $('#span_' + wishId).html('&nbsp;You & ' + (Number(result.total) - 1) + ' Others');
+                    } else {
+                        $('#span_' + wishId).html('&nbsp;' + result.total + ' like(s)');
+                    }
+                },
+                error: function (error) {
+                    console.log(error);
+                }
+            });
+        });
+
+        $(function () {
+            $.ajax({
+                url: '/getAllWishes',
+                type: 'GET',
+                success: function (response) {
+                    var data = JSON.parse(response);
+                    var itemsPerRow = 0;
+                    var div = $('<div>').attr('class', 'row');
+
+                    for (var i = 0; i < data.length; i++) {
+                        if (itemsPerRow < 3) {
+                            div.append(CreateThumb(data[i].Id, data[i].Title, data[i].Description, data[i].FilePath, data[i].Like, data[i].HasLiked));
+                            if (i === data.length - 1) {
+                                $('.well').append(div)
+                            } else {
+                                itemsPerRow++;
+                            }
+                        } else {
+                            $('.well').append(div);
+                            div = $('<div>').attr('class', 'row');
+                            div.append(CreateThumb(data[i].Id, data[i].Title, data[i].Description, data[i].FilePath, data[i].Like, data[i].HasLiked));
+                            if (i === data.length - 1) {
+                                $('.well').append(div);
+                            }
+                            itemsPerRow = 1;
+                        }
+                    }
+                },
+                error: function (error) {
+                    console.log(error);
+                }
+            });
+        });
+
+        function CreateThumb(id, title, desc, filepath, like, has_liked) {
+            var mainDiv = $('<div>').attr('class', 'col-sm-4 col-md-4');
+            var thumbNail = $('<div>').attr('class', 'thumbnail');
+            var img = $('<img>').attr({
+                'src': filepath,
+                'data-holder-rendered': true,
+                'style': 'height: 150px; width: 150px; display: block'
+            });
+
+            var caption = $('<div>').attr('class', 'caption');
+            var title = $('<h3>').text(title);
+            var desc = $('<p>').text(desc);
+
+            var p = $('<p>');
+            var btn = $('<button>').attr({
+                'id': 'btn_' + id,
+                'type': 'button',
+                'class': 'btn btn-danger btn-sm'
+            });
+            var span = $('<span>').attr({
+                'class': 'glyphicon glyphicon-thumbs-up',
+                'aria-hidden': 'true'
+            });
+
+            var likeSpan = $('<span>').attr({'aria-hidden':'true','id':'span_'+id});
+
+            if (has_liked === 1) {
+                likeSpan.html('&nbsp;You & ' + (Number(like) - 1) + ' Others');
+            } else {
+                likeSpan.html('&nbsp;' + like + ' like(s)');
+            }
+
+            p.append(btn.append(span));
+            p.append(likeSpan)
+
+            caption.append(title);
+            caption.append(desc);
+            caption.append(p);
+
+            thumbNail.append(img);
+            thumbNail.append(caption);
+            mainDiv.append(thumbNail);
+
+            return mainDiv;
+        }
+    </script>
+
+</head>
+
+<body>
+
+<div class="container">
+    <div class="header">
+        <nav>
+            <ul class="nav nav-pills pull-right">
+                <li role="presentation" class="active"><a href="#">Dashboard</a></li>
+                <li role="presentation"><a href="/userHome">My List</a></li>
+                <li role="presentation"><a href="/showAddWish">Add Item</a></li>
+                <li role="presentation"><a href="/logout">Logout</a></li>
+            </ul>
+        </nav>
+        <h3 class="text-muted">Python Flask App</h3>
+    </div>
+
+    <div class="well">
+        <!-- dynamically populated well -->
+
+    </div>
+
+    <footer class="footer">
+        <p>&copy; Company 2015</p>
+    </footer>
+
+</div>
+</body>
+
+
+</html>
